@@ -11,6 +11,7 @@ import re
 import urllib
 import json
 import sys
+import os
 from enum import Enum
 
 
@@ -208,13 +209,10 @@ class IminkType(Enum):
     NSO = "1"
     APP = "2"
 
-
-def get_cookie(url_scheme: str):
+def renew_cookie(session_token: str):
     version = get_app_version()
     logger.debug(version)
-    session_token = get_session_token(url_scheme)
-    logger.debug(session_token.session_token)
-    access_token = get_access_token(session_token.session_token)
+    access_token = get_access_token(session_token)
     logger.debug(access_token.access_token)
     splatoon_token = get_splatoon_token(access_token, version)
     logger.debug(splatoon_token.result.webApiServerCredential.accessToken)
@@ -224,8 +222,8 @@ def get_cookie(url_scheme: str):
     logger.debug(bullet_token.bulletToken)
 
     credentials = {
-        'nsaid': splatoon_token.result.user.nsaId,
-        'session_token': session_token.session_token,
+        'nsa_id': splatoon_token.result.user.nsaId,
+        'session_token': session_token,
         'bullet_token': bullet_token.bulletToken,
         'expires_in': (datetime.datetime.now() + datetime.timedelta(hours=2)).isoformat()
     }
@@ -233,6 +231,12 @@ def get_cookie(url_scheme: str):
     # Dump User Credentials
     with open('credentials.json', "w") as f:
         json.dump(credentials, f, indent=4)
+
+
+def get_cookie(url_scheme: str):
+    session_token = get_session_token(url_scheme)
+    logger.debug(session_token.session_token)
+    renew_cookie(session_token.session_token)
 
 
 def get_session_token_code():
@@ -381,7 +385,6 @@ def get_splatoon_access_token(splatoon_token: SplatoonToken, version: str
         response = ErrorAPP.from_json(response)
         print(f"TypeError: {response.errorMessage}")
 
-
 def get_bullet_token(splatoon_access_token: SplatoonAccessToken) -> BulletToken:
     url = "https://api.lp1.av5ja.srv.nintendo.net/api/bullet_tokens"
     headers = {
@@ -409,8 +412,11 @@ def get_app_version() -> str:
 def request(parameters: dict) -> dict:
     # WIP: Load User Credentials
     with open('credentials.json', mode='r') as f:
-        credential = Credential.from_json(f.read())
-
+        credential: Credential = Credential.from_json(f.read())
+        # Renew Cookie
+        if datetime.datetime.now() >= datetime.datetime.fromisoformat(credential.expires_in):
+            renew_cookie(credential.session_token)
+            credential: Credential = Credential.from_json(f.read())
         url = 'https://api.lp1.av5ja.srv.nintendo.net/api/graphql'
         headers = {
           'x-web-view-ver': version,
@@ -449,8 +455,11 @@ def get_coop_summary() -> dict:
         json.dump(response, f, indent=2)
     
     nodes = response['data']['coopResult']['historyGroups']['nodes'][0]['historyDetails']['nodes']
-    ids: list[int] = list(map(lambda x: x['id'], nodes))
+
+    ids: list[str] = set(map(lambda x: x['id'], nodes)) - set(map(lambda x: os.path.splitext(x)[0], os.listdir('results')))
+    print(f"Available results {len(ids)}")
     for id in ids:
         with open(f'results/{id}.json', mode='w') as f:
+            print(f"Downloading results id: {id}")
             result = get_coop_result(id)
             json.dump(result, f, indent=2)
