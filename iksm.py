@@ -210,7 +210,8 @@ class IminkType(Enum):
     NSO = "1"
     APP = "2"
 
-def renew_cookie(session: Session, session_token: str):
+def renew_cookie(session_token: str):
+    session = Session()
     version = get_app_version(session)
     logger.debug(version)
     access_token = get_access_token(session, session_token)
@@ -237,7 +238,7 @@ def renew_cookie(session: Session, session_token: str):
 def get_cookie(session: Session, url_scheme: str):
     session_token = get_session_token(session, url_scheme)
     logger.debug(session_token.session_token)
-    renew_cookie(session, session_token.session_token)
+    renew_cookie(session_token.session_token)
 
 
 def get_session_token_code(session: Session):
@@ -416,15 +417,24 @@ def request(session: Session, parameters: dict) -> dict:
         credential: Credential = Credential.from_json(f.read())
         # Renew Cookie
         if datetime.datetime.now() >= datetime.datetime.fromisoformat(credential.expires_in):
-            renew_cookie(session, credential.session_token)
+            renew_cookie(credential.session_token)
             session = Session()
-            credential: Credential = Credential.from_json(f.read())
+            with open('credentials.json', mode='r') as newf:
+                credential: Credential = Credential.from_json(newf.read())
         url = 'https://api.lp1.av5ja.srv.nintendo.net/api/graphql'
         headers = {
           'x-web-view-ver': version,
           'Authorization': f'Bearer {credential.bullet_token}' 
         }
-        return session.post(url, headers=headers, json=parameters).json()
+        try:
+            response =  session.post(url, headers=headers, json=parameters).json()
+        except:
+            renew_cookie(credential.session_token)
+            session = Session()
+            with open('credentials.json', mode='r') as newf:
+                credential: Credential = Credential.from_json(newf.read())
+            response =  session.post(url, headers=headers, json=parameters).json()
+        return response
 
 
 def get_coop_result(session, id: str) -> dict:
