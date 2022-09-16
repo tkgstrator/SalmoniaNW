@@ -470,10 +470,11 @@ def get_coop_summary() -> dict:
     
     nodes = response['data']['coopResult']['historyGroups']['nodes'][0]['historyDetails']['nodes']
 
-    ids: list[str] = set(map(lambda x: base64.b64decode(x['id']).decode('utf-8'), nodes)) - set(map(lambda x: os.path.splitext(x)[0], os.listdir('results')))
+    ids: list[str] = set(map(lambda x: x['id'], nodes)) - set(map(lambda x: os.path.splitext(x)[0], os.listdir('results')))
     print(f"Available results {len(ids)}")
     for id in ids:
-        with open(f'results/{id}.json', mode='w') as f:
+        fname = f"results/{base64.b64decode(id).decode('utf-8')}.json"
+        with open(fname, mode='w') as f:
             print(f"Downloading results id: {id}")
             result = get_coop_result(session, id)
             json.dump(result, f, indent=2)
