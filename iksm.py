@@ -467,8 +467,13 @@ def get_coop_summary() -> dict:
     response = request(session, parameters)
     with open('summary.json', mode='w') as f:
         json.dump(response, f, indent=2)
-    
-    nodes = response['data']['coopResult']['historyGroups']['nodes'][0]['historyDetails']['nodes']
+
+    allnodes = response['data']['coopResult']['historyGroups']['nodes'] 
+    nodes = []
+    for n in allnodes:
+        nodes = nodes + n['historyDetails']['nodes']
+
+#    nodes = response['data']['coopResult']['historyGroups']['nodes'][0]['historyDetails']['nodes']
 
     ids: list[str] = set(map(lambda x: x['id'], nodes)) - set(map(lambda x: base64.b64encode(os.path.splitext(x)[0].encode('utf-8')).decode('utf-8'), os.listdir('results')))
     print(f"Available results {len(ids)}")
