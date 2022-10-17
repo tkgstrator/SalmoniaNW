@@ -5,6 +5,7 @@ from dataclasses_json import dataclass_json
 from logging import DEBUG, FileHandler, Formatter, getLogger, config
 from typing import List, Type
 from typing import Optional
+from requests import Session
 import datetime
 import requests
 import re
@@ -12,6 +13,7 @@ import urllib
 import json
 import sys
 import os
+import base64
 from enum import Enum
 
 
@@ -210,15 +212,16 @@ class IminkType(Enum):
     APP = "2"
 
 def renew_cookie(session_token: str):
-    version = get_app_version()
+    session = Session()
+    version = get_app_version(session)
     logger.debug(version)
-    access_token = get_access_token(session_token)
+    access_token = get_access_token(session, session_token)
     logger.debug(access_token.access_token)
-    splatoon_token = get_splatoon_token(access_token, version)
+    splatoon_token = get_splatoon_token(session, access_token, version)
     logger.debug(splatoon_token.result.webApiServerCredential.accessToken)
-    splatoon_access_token = get_splatoon_access_token(splatoon_token, version)
+    splatoon_access_token = get_splatoon_access_token(session, splatoon_token, version)
     logger.debug(splatoon_access_token.result.accessToken)
-    bullet_token = get_bullet_token(splatoon_access_token)
+    bullet_token = get_bullet_token(session, splatoon_access_token)
     logger.debug(bullet_token.bulletToken)
 
     credentials = {
@@ -233,13 +236,13 @@ def renew_cookie(session_token: str):
         json.dump(credentials, f, indent=4)
 
 
-def get_cookie(url_scheme: str):
-    session_token = get_session_token(url_scheme)
+def get_cookie(session: Session, url_scheme: str):
+    session_token = get_session_token(session, url_scheme)
     logger.debug(session_token.session_token)
     renew_cookie(session_token.session_token)
 
 
-def get_session_token_code():
+def get_session_token_code(session: Session):
     url = "https://accounts.nintendo.com/connect/1.0.0/authorize"
 
     parameters = {
@@ -255,11 +258,11 @@ def get_session_token_code():
     headers = {
         "user-agent": f"Salmonia/{app_ver} @tkgling",
     }
-    response = requests.get(url, headers=headers, params=parameters)
+    response = session.get(url, headers=headers, params=parameters)
     return response.history[0].url
 
 
-def get_session_token(url_scheme: str) -> SessionToken:
+def get_session_token(session: Session, url_scheme: str) -> SessionToken:
     session_token_code = re.search("de=(.*)&", url_scheme).group(1)
 
     url = "https://accounts.nintendo.com/connect/1.0.0/api/session_token"
@@ -277,7 +280,7 @@ def get_session_token(url_scheme: str) -> SessionToken:
     }
 
     try:
-        response = requests.post(url, headers=headers, data=parameters).text
+        response = session.post(url, headers=headers, data=parameters).text
         return SessionToken.from_json(response)
     except Exception as e:
         logger.error(response)
@@ -286,7 +289,7 @@ def get_session_token(url_scheme: str) -> SessionToken:
         sys.exit(1)
 
 
-def get_access_token(session_token: str) -> AccessToken:
+def get_access_token(session: Session, session_token: str) -> AccessToken:
     url = "https://accounts.nintendo.com/connect/1.0.0/api/token"
     parameters = {
         "client_id": "71b963c1b7b6d119",
@@ -300,7 +303,7 @@ def get_access_token(session_token: str) -> AccessToken:
         "Content-Length": str(len(urllib.parse.urlencode(parameters))),
     }
     try:
-        response = requests.post(url, headers=headers, json=parameters).text
+        response = session.post(url, headers=headers, json=parameters).text
         return AccessToken.from_json(response)
     except Exception as e:
         logger.error(response)
@@ -309,7 +312,7 @@ def get_access_token(session_token: str) -> AccessToken:
         sys.exit(1)
 
 
-def get_imink(access_token: str, type: IminkType) -> Imink:
+def get_imink(session: Session, access_token: str, type: IminkType) -> Imink:
     url = "https://api.imink.app/f"
     headers = {
         "User-Agent": f"Salmonia/{app_ver} @tkgling",
@@ -317,17 +320,18 @@ def get_imink(access_token: str, type: IminkType) -> Imink:
     }
     parameters = {"hash_method": type.value, "token": access_token}
     try:
-        response = requests.post(url, headers=headers, json=parameters)
+        response = session.post(url, headers=headers, json=parameters)
         return Imink.from_json(response.text)
     except Exception as e:
+        response = Imink.from_json(response)
         logger.error(response)
         print(f"TypeError: {response.error}")
         sys.exit(1)
 
 
-def get_splatoon_token(access_token: AccessToken, version: str) -> SplatoonToken:
+def get_splatoon_token(session: Session, access_token: AccessToken, version: str) -> SplatoonToken:
     url = "https://api-lp1.znc.srv.nintendo.net/v3/Account/Login"
-    result = get_imink(access_token.access_token, IminkType.NSO)
+    result = get_imink(session, access_token.access_token, IminkType.NSO)
     parameters = {
         "parameter": {
             "f": result.f,
@@ -347,7 +351,7 @@ def get_splatoon_token(access_token: AccessToken, version: str) -> SplatoonToken
         "X-Platform": "Android",
     }
     try:
-        response = requests.post(url, headers=headers, json=parameters)
+        response = session.post(url, headers=headers, json=parameters)
         return SplatoonToken.from_json(response.text)
     except Exception as e:
         logger.error(response)
@@ -355,11 +359,10 @@ def get_splatoon_token(access_token: AccessToken, version: str) -> SplatoonToken
         print(f"TypeError: {response.error}")
 
 
-def get_splatoon_access_token(splatoon_token: SplatoonToken, version: str
-) -> SplatoonAccessToken:
+def get_splatoon_access_token(session: Session, splatoon_token: SplatoonToken, version: str) -> SplatoonAccessToken:
     url = "https://api-lp1.znc.srv.nintendo.net/v2/Game/GetWebServiceToken"
     access_token = splatoon_token.result.webApiServerCredential.accessToken
-    result = get_imink(access_token, IminkType.APP)
+    result = get_imink(session, access_token, IminkType.APP)
     parameters = {
         "parameter": {
             "id": 4834290508791808,
@@ -378,14 +381,14 @@ def get_splatoon_access_token(splatoon_token: SplatoonToken, version: str
     }
 
     try:
-        response = requests.post(url, headers=headers, json=parameters)
+        response = session.post(url, headers=headers, json=parameters)
         return SplatoonAccessToken.from_json(response.text)
     except Exception as e:
         logger.error(response)
         response = ErrorAPP.from_json(response)
         print(f"TypeError: {response.errorMessage}")
 
-def get_bullet_token(splatoon_access_token: SplatoonAccessToken) -> BulletToken:
+def get_bullet_token(session: Session, splatoon_access_token: SplatoonAccessToken) -> BulletToken:
     url = "https://api.lp1.av5ja.srv.nintendo.net/api/bullet_tokens"
     headers = {
         'x-web-view-ver': version,
@@ -394,38 +397,48 @@ def get_bullet_token(splatoon_access_token: SplatoonAccessToken) -> BulletToken:
     }
 
     try:
-        response = requests.post(url, headers=headers).text
+        response = session.post(url, headers=headers).text
         return BulletToken.from_json(response)
     except Exception as e:
         logger.error(response)
         print(f"TypeError: invalid splatoon access token")
 
 
-def get_app_version() -> str:
+def get_app_version(session: Session) -> str:
     url = "https://itunes.apple.com/lookup?id=1234806557"
     try:
-        response = requests.get(url)
+        response = session.get(url)
         return AppVersion.from_json(response.text).results[0].version
     except:
         print(f"TypeError: invalid id")
 
-def request(parameters: dict) -> dict:
+def request(session: Session, parameters: dict) -> dict:
     # WIP: Load User Credentials
     with open('credentials.json', mode='r') as f:
         credential: Credential = Credential.from_json(f.read())
         # Renew Cookie
         if datetime.datetime.now() >= datetime.datetime.fromisoformat(credential.expires_in):
             renew_cookie(credential.session_token)
-            credential: Credential = Credential.from_json(f.read())
+            session = Session()
+            with open('credentials.json', mode='r') as newf:
+                credential: Credential = Credential.from_json(newf.read())
         url = 'https://api.lp1.av5ja.srv.nintendo.net/api/graphql'
         headers = {
           'x-web-view-ver': version,
           'Authorization': f'Bearer {credential.bullet_token}' 
         }
-        return requests.post(url, headers=headers, json=parameters).json()
+        try:
+            response =  session.post(url, headers=headers, json=parameters).json()
+        except:
+            renew_cookie(credential.session_token)
+            session = Session()
+            with open('credentials.json', mode='r') as newf:
+                credential: Credential = Credential.from_json(newf.read())
+            response =  session.post(url, headers=headers, json=parameters).json()
+        return response
 
 
-def get_coop_result(id: str) -> dict:
+def get_coop_result(session, id: str) -> dict:
     parameters = {
       'variables': {
         'coopHistoryDetailId': id
@@ -437,9 +450,10 @@ def get_coop_result(id: str) -> dict:
         }
       }
     }
-    return request(parameters) 
+    return request(session, parameters) 
 
 def get_coop_summary() -> dict:
+    session = Session()
     url = 'https://api.lp1.av5ja.srv.nintendo.net/api/graphql'
     parameters = {
       'variables': {},
@@ -450,16 +464,22 @@ def get_coop_summary() -> dict:
         }
       }
     }
-    response = request(parameters)
+    response = request(session, parameters)
     with open('summary.json', mode='w') as f:
         json.dump(response, f, indent=2)
-    
-    nodes = response['data']['coopResult']['historyGroups']['nodes'][0]['historyDetails']['nodes']
 
-    ids: list[str] = set(map(lambda x: x['id'], nodes)) - set(map(lambda x: os.path.splitext(x)[0], os.listdir('results')))
+    allnodes = response['data']['coopResult']['historyGroups']['nodes'] 
+    nodes = []
+    for n in allnodes:
+        nodes = nodes + n['historyDetails']['nodes']
+
+#    nodes = response['data']['coopResult']['historyGroups']['nodes'][0]['historyDetails']['nodes']
+
+    ids: list[str] = set(map(lambda x: x['id'], nodes)) - set(map(lambda x: base64.b64encode(os.path.splitext(x)[0].encode('utf-8')).decode('utf-8'), os.listdir('results')))
     print(f"Available results {len(ids)}")
     for id in ids:
-        with open(f'results/{id}.json', mode='w') as f:
+        fname = f"results/{base64.b64decode(id).decode('utf-8')}.json"
+        with open(fname, mode='w') as f:
             print(f"Downloading results id: {id}")
-            result = get_coop_result(id)
+            result = get_coop_result(session, id)
             json.dump(result, f, indent=2)
