@@ -1,5 +1,7 @@
 __pycache__
-config.json
+credentials.json
 .env
 results/*.json
 logs.txt
+.venv
+summary.json

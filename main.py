@@ -12,6 +12,7 @@ def sign_in():
     try:
       url_scheme = input("")
       iksm.get_cookie(url_scheme)
+      break
     except KeyboardInterrupt:
       sys.exit(1)
     except AttributeError:
@@ -20,4 +21,7 @@ def sign_in():
       pass
 
 if __name__=='__main__':
-  summary = iksm.get_coop_summary()
+  try:
+    summary = iksm.get_coop_summary()
+  except FileNotFoundError:
+    sign_in()

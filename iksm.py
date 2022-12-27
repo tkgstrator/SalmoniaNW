@@ -1,10 +1,7 @@
 from cgitb import handler
 from cmath import log
-from dataclasses import asdict, dataclass
-from dataclasses_json import dataclass_json
 from logging import DEBUG, FileHandler, Formatter, getLogger, config
-from typing import List, Type
-from typing import Optional
+from django.http import HttpResponseBadRequest, HttpResponse
 from requests import Session
 import datetime
 import requests
@@ -14,235 +11,84 @@ import json
 import sys
 import os
 import base64
-from enum import Enum
-
-
-@dataclass_json
-@dataclass
-class ErrorNSO:
-    error: str
-    error_description: str
-
-
-@dataclass_json
-@dataclass
-class Information:
-    minimumOsVersion: str
-    version: str
-    currentVersionReleaseDate: str
-
-
-@dataclass_json
-@dataclass
-class AppVersion:
-    resultCount: int
-    results: List[Information]
-
-
-@dataclass_json
-@dataclass
-class ErrorAPP:
-    status: str
-    correlationId: str
-    errorMessage: str
-
-
-@dataclass_json
-@dataclass
-class SessionToken:
-    code: str
-    session_token: str
-
-
-@dataclass_json
-@dataclass
-class AccessToken:
-    access_token: str
-    scope: List[str]
-    token_type: str
-    id_token: str
-    expires_in: int
-
-
-@dataclass_json
-@dataclass
-class Credential:
-    accessToken: str
-    expiresIn: int
-
-
-@dataclass_json
-@dataclass
-class FriendCode:
-    regenerable: bool
-    regenerableAt: int
-    id: str
-
-
-@dataclass_json
-@dataclass
-class Membership:
-    active: bool
-
-
-@dataclass_json
-@dataclass
-class NintendoAccount:
-    membership: Membership
-
-
-@dataclass_json
-@dataclass
-class Links:
-    nintendoAccount: NintendoAccount
-    friendCode: FriendCode
-
-
-@dataclass_json
-@dataclass
-class Permissions:
-    presence: str
-
-
-@dataclass_json
-@dataclass
-class Game:
-    pass
-
-
-@dataclass_json
-@dataclass
-class Presence:
-    state: str
-    updatedAt: int
-    logoutAt: int
-    game: Game
-
-
-@dataclass_json
-@dataclass
-class User:
-    id: int
-    nsaId: str
-    imageUri: str
-    name: str
-    supportId: str
-    isChildRestricted: bool
-    etag: str
-    links: Links
-    permissions: Permissions
-    presence: Presence
-
-
-@dataclass_json
-@dataclass
-class SplatoonTokenResult:
-    user: User
-    webApiServerCredential: Credential
-    firebaseCredential: Credential
-
-
-@dataclass_json
-@dataclass
-class SplatoonToken:
-    status: int
-    result: SplatoonTokenResult
-    correlationId: str
-
-
-@dataclass_json
-@dataclass
-class SplatoonAccessTokenResult:
-    accessToken: str
-    expiresIn: int
-
-
-@dataclass_json
-@dataclass
-class SplatoonAccessToken:
-    status: int
-    result: SplatoonAccessTokenResult
-    correlationId: str
-
-
-@dataclass_json
-@dataclass
-class Imink:
-    f: str
-    timestamp: int
-    request_id: str
-
-@dataclass_json
-@dataclass
-class BulletToken:
-    bulletToken: str
-    lang: str
-    is_noe_country: bool
-
-@dataclass_json
-@dataclass
-class JobNum:
-    local: int = 0
-    splatnet2: int = 0
-
-
-@dataclass_json
-@dataclass
-class Credential:
-    nsa_id: str
-    session_token: str
-    bullet_token: str
-    expires_in: str
+from type import *
+from hash import *
 
 session_token_code_challenge = "tYLPO5PxpK-DTcAHJXugD7ztvAZQlo0DQQp3au5ztuM"
 session_token_code_verifier = "OwaTAOolhambwvY3RXSD-efxqdBEVNnQkc0bBJ7zaak"
-app_ver = '1.0.0'
-version = '1.0.0-5e2bcdfb'
+app_ver = "2.0.0"
 
 logger = getLogger(__name__)
 logger.setLevel(DEBUG)
-handler = FileHandler('logs.txt')
+handler = FileHandler("logs.txt")
 handler.setLevel(DEBUG)
-formatter = Formatter('%(levelname)s  %(asctime)s  [%(name)s] %(message)s')
+formatter = Formatter("%(levelname)s  %(asctime)s  [%(name)s] %(message)s")
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 
-class IminkType(Enum):
-    NSO = "1"
-    APP = "2"
+def _get_hash() -> str:
+    url = "https://api.lp1.av5ja.srv.nintendo.net"
+    response = requests.get(url)
+    response.encoding = response.apparent_encoding
+    return re.search(
+        'src="/static/js/main\.([a-f0-9]{8}).js"', response.text
+    ).group(1)
 
+# Get React App Version from SplatNet3
+def _get_react_version() -> str:
+    hash = _get_hash()
+    url = f"https://api.lp1.av5ja.srv.nintendo.net/static/js/main.{hash}.js"
+    response = requests.get(url)
+    response.encoding = response.apparent_encoding
+    
+    version =  re.search(
+        '`(\d{1}\.\d{1}\.\d{1})-', response.text
+    ).group(1)
+    revision = re.search(
+        'REACT_APP_REVISION:"([a-f0-9]{8})', response.text
+    ).group(1)
+    return f"{version}-{revision}"
+
+# Renew Bullet Token from Session Token
 def renew_cookie(session_token: str):
     session = Session()
-    version = get_app_version(session)
+    revision = _get_react_version()
+    version = _get_app_version(session)
+    logger.debug(revision)
     logger.debug(version)
-    access_token = get_access_token(session, session_token)
+    access_token = _get_access_token(session, session_token)
     logger.debug(access_token.access_token)
-    splatoon_token = get_splatoon_token(session, access_token, version)
+    splatoon_token = _get_splatoon_token(session, access_token, version)
     logger.debug(splatoon_token.result.webApiServerCredential.accessToken)
-    splatoon_access_token = get_splatoon_access_token(session, splatoon_token, version)
+    splatoon_access_token = _get_splatoon_access_token(session, splatoon_token, version)
     logger.debug(splatoon_access_token.result.accessToken)
-    bullet_token = get_bullet_token(session, splatoon_access_token)
+    bullet_token = _get_bullet_token(session, splatoon_access_token, revision)
     logger.debug(bullet_token.bulletToken)
 
     credentials = {
-        'nsa_id': splatoon_token.result.user.nsaId,
-        'session_token': session_token,
-        'bullet_token': bullet_token.bulletToken,
-        'expires_in': (datetime.datetime.now() + datetime.timedelta(hours=2)).isoformat()
+        "nsa_id": splatoon_token.result.user.nsaId,
+        "session_token": session_token,
+        "bullet_token": bullet_token.bulletToken,
+        "expires_in": (
+            datetime.datetime.now() + datetime.timedelta(hours=2)
+        ).isoformat(),
+        "version": revision
     }
 
     # Dump User Credentials
-    with open('credentials.json', "w") as f:
+    with open("credentials.json", "w") as f:
         json.dump(credentials, f, indent=4)
 
 
-def get_cookie(session: Session, url_scheme: str):
-    session_token = get_session_token(session, url_scheme)
+def get_cookie(url_scheme: str):
+    session = Session()
+    session_token = _get_session_token(session, url_scheme)
     logger.debug(session_token.session_token)
     renew_cookie(session_token.session_token)
 
 
-def get_session_token_code(session: Session):
+def get_session_token_code() -> str:
+    session = Session()
     url = "https://accounts.nintendo.com/connect/1.0.0/authorize"
 
     parameters = {
@@ -256,13 +102,13 @@ def get_session_token_code(session: Session):
         "theme": "login_form",
     }
     headers = {
-        "user-agent": f"Salmonia/{app_ver} @tkgling",
+        "user-agent": f"Salmonia+/{app_ver} @tkgling",
     }
     response = session.get(url, headers=headers, params=parameters)
     return response.history[0].url
 
 
-def get_session_token(session: Session, url_scheme: str) -> SessionToken:
+def _get_session_token(session: Session, url_scheme: str) -> SessionToken:
     session_token_code = re.search("de=(.*)&", url_scheme).group(1)
 
     url = "https://accounts.nintendo.com/connect/1.0.0/api/session_token"
@@ -272,7 +118,7 @@ def get_session_token(session: Session, url_scheme: str) -> SessionToken:
         "session_token_code_verifier": session_token_code_verifier,
     }
     headers = {
-        "user-agent": f"Salmonia/{app_ver} @tkgling",
+        "user-agent": f"Salmonia+/{app_ver} @tkgling",
         "accept": "application/json",
         "content-type": "application/x-www-form-urlencoded",
         "content-length": str(len(urllib.parse.urlencode(parameters))),
@@ -289,7 +135,7 @@ def get_session_token(session: Session, url_scheme: str) -> SessionToken:
         sys.exit(1)
 
 
-def get_access_token(session: Session, session_token: str) -> AccessToken:
+def _get_access_token(session: Session, session_token: str) -> AccessToken:
     url = "https://accounts.nintendo.com/connect/1.0.0/api/token"
     parameters = {
         "client_id": "71b963c1b7b6d119",
@@ -298,7 +144,7 @@ def get_access_token(session: Session, session_token: str) -> AccessToken:
     }
     headers = {
         "Host": "accounts.nintendo.com",
-        "User-Agent": f"Salmonia/{app_ver} @tkgling",
+        "User-Agent": f"Salmonia+/{app_ver} @tkgling",
         "Accept": "application/json",
         "Content-Length": str(len(urllib.parse.urlencode(parameters))),
     }
@@ -312,10 +158,10 @@ def get_access_token(session: Session, session_token: str) -> AccessToken:
         sys.exit(1)
 
 
-def get_imink(session: Session, access_token: str, type: IminkType) -> Imink:
+def _get_imink(session: Session, access_token: str, type: IminkType) -> Imink:
     url = "https://api.imink.app/f"
     headers = {
-        "User-Agent": f"Salmonia/{app_ver} @tkgling",
+        "User-Agent": f"Salmonia+/{app_ver} @tkgling",
         "Accept": "application/json",
     }
     parameters = {"hash_method": type.value, "token": access_token}
@@ -329,9 +175,11 @@ def get_imink(session: Session, access_token: str, type: IminkType) -> Imink:
         sys.exit(1)
 
 
-def get_splatoon_token(session: Session, access_token: AccessToken, version: str) -> SplatoonToken:
+def _get_splatoon_token(
+    session: Session, access_token: AccessToken, version: str
+) -> SplatoonToken:
     url = "https://api-lp1.znc.srv.nintendo.net/v3/Account/Login"
-    result = get_imink(session, access_token.access_token, IminkType.NSO)
+    result = _get_imink(session, access_token.access_token, IminkType.NSO)
     parameters = {
         "parameter": {
             "f": result.f,
@@ -345,7 +193,7 @@ def get_splatoon_token(session: Session, access_token: AccessToken, version: str
     }
     headers = {
         "Host": "api-lp1.znc.srv.nintendo.net",
-        "User-Agent": f"Salmonia/{app_ver} @tkgling",
+        "User-Agent": f"Salmonia+/{app_ver} @tkgling",
         "Authorization": "Bearer",
         "X-ProductVersion": f"{version}",
         "X-Platform": "Android",
@@ -359,10 +207,12 @@ def get_splatoon_token(session: Session, access_token: AccessToken, version: str
         print(f"TypeError: {response.error}")
 
 
-def get_splatoon_access_token(session: Session, splatoon_token: SplatoonToken, version: str) -> SplatoonAccessToken:
+def _get_splatoon_access_token(
+    session: Session, splatoon_token: SplatoonToken, version: str
+) -> SplatoonAccessToken:
     url = "https://api-lp1.znc.srv.nintendo.net/v2/Game/GetWebServiceToken"
     access_token = splatoon_token.result.webApiServerCredential.accessToken
-    result = get_imink(session, access_token, IminkType.APP)
+    result = _get_imink(session, access_token, IminkType.APP)
     parameters = {
         "parameter": {
             "id": 4834290508791808,
@@ -374,7 +224,7 @@ def get_splatoon_access_token(session: Session, splatoon_token: SplatoonToken, v
     }
     headers = {
         "Host": "api-lp1.znc.srv.nintendo.net",
-        "User-Agent": f"Salmonia/{app_ver} @tkgling",
+        "User-Agent": f"Salmonia+/{app_ver} @tkgling",
         "Authorization": f"Bearer {access_token}",
         "X-ProductVersion": f"{version}",
         "X-Platform": "Android",
@@ -388,12 +238,15 @@ def get_splatoon_access_token(session: Session, splatoon_token: SplatoonToken, v
         response = ErrorAPP.from_json(response)
         print(f"TypeError: {response.errorMessage}")
 
-def get_bullet_token(session: Session, splatoon_access_token: SplatoonAccessToken) -> BulletToken:
+
+def _get_bullet_token(
+    session: Session, splatoon_access_token: SplatoonAccessToken, revision: str
+) -> BulletToken:
     url = "https://api.lp1.av5ja.srv.nintendo.net/api/bullet_tokens"
     headers = {
-        'x-web-view-ver': version,
-        'x-nacountry': 'US',
-        'X-GameWebToken': splatoon_access_token.result.accessToken
+        "x-web-view-ver": revision,
+        "x-nacountry": "US",
+        "X-GameWebToken": splatoon_access_token.result.accessToken,
     }
 
     try:
@@ -404,7 +257,8 @@ def get_bullet_token(session: Session, splatoon_access_token: SplatoonAccessToke
         print(f"TypeError: invalid splatoon access token")
 
 
-def get_app_version(session: Session) -> str:
+# Get Nintendo Switch Online App Version from App Store
+def _get_app_version(session: Session) -> str:
     url = "https://itunes.apple.com/lookup?id=1234806557"
     try:
         response = session.get(url)
@@ -412,74 +266,94 @@ def get_app_version(session: Session) -> str:
     except:
         print(f"TypeError: invalid id")
 
+# Request with Credentials
 def request(session: Session, parameters: dict) -> dict:
     # WIP: Load User Credentials
-    with open('credentials.json', mode='r') as f:
+    with open("credentials.json", mode="r") as f:
         credential: Credential = Credential.from_json(f.read())
         # Renew Cookie
-        if datetime.datetime.now() >= datetime.datetime.fromisoformat(credential.expires_in):
+        if datetime.datetime.now() >= datetime.datetime.fromisoformat(
+            credential.expires_in
+        ):
             renew_cookie(credential.session_token)
             session = Session()
-            with open('credentials.json', mode='r') as newf:
+            with open("credentials.json", mode="r") as newf:
                 credential: Credential = Credential.from_json(newf.read())
-        url = 'https://api.lp1.av5ja.srv.nintendo.net/api/graphql'
+        url = "https://api.lp1.av5ja.srv.nintendo.net/api/graphql"
         headers = {
-          'x-web-view-ver': version,
-          'Authorization': f'Bearer {credential.bullet_token}' 
+            "x-web-view-ver": credential.version,
+            "Authorization": f"Bearer {credential.bullet_token}",
         }
         try:
-            response =  session.post(url, headers=headers, json=parameters).json()
+            response = session.post(url, headers=headers, json=parameters).json()
         except:
             renew_cookie(credential.session_token)
             session = Session()
-            with open('credentials.json', mode='r') as newf:
+            with open("credentials.json", mode="r") as newf:
                 credential: Credential = Credential.from_json(newf.read())
-            response =  session.post(url, headers=headers, json=parameters).json()
+            response = session.post(url, headers=headers, json=parameters).json()
         return response
 
+def _upload_coop_result(session: Session, result: dict):
+    url = "https://api.splatnet3.com/v1/results"
+    body = {
+        "results": [result]
+    }
+    response = session.post(url, json=body)
+    if response.status_code == 201:
+        return
+    else:
+        raise HttpResponseBadRequest
 
 def get_coop_result(session, id: str) -> dict:
     parameters = {
-      'variables': {
-        'coopHistoryDetailId': id
-      },
-      'extensions': {
-        'persistedQuery': {
-          'version': 1,
-          'sha256Hash': 'f3799a033f0a7ad4b1b396f9a3bafb1e'
-        }
-      }
+        "variables": {"coopHistoryDetailId": id},
+        "extensions": {
+            "persistedQuery": {
+                "version": 1,
+                "sha256Hash": SHA256Hash.CoopHistoryDetailQuery.value,
+            }
+        },
     }
-    return request(session, parameters) 
+    return request(session, parameters)
+
 
 def get_coop_summary() -> dict:
     session = Session()
-    url = 'https://api.lp1.av5ja.srv.nintendo.net/api/graphql'
+    url = "https://api.lp1.av5ja.srv.nintendo.net/api/graphql"
     parameters = {
-      'variables': {},
-      'extensions': {
-        'persistedQuery': {
-          'version': 1,
-          'sha256Hash': 'a5692cf290ffb26f14f0f7b6e5023b07'
-        }
-      }
+        "variables": {},
+        "extensions": {
+            "persistedQuery": {
+                "version": 1,
+                "sha256Hash": SHA256Hash.CoopHistoryQuery.value,
+            }
+        },
     }
     response = request(session, parameters)
-    with open('summary.json', mode='w') as f:
+    with open("summary.json", mode="w") as f:
         json.dump(response, f, indent=2)
 
-    allnodes = response['data']['coopResult']['historyGroups']['nodes'] 
+    allnodes = response["data"]["coopResult"]["historyGroups"]["nodes"]
     nodes = []
     for n in allnodes:
-        nodes = nodes + n['historyDetails']['nodes']
+        nodes = nodes + n["historyDetails"]["nodes"]
 
-#    nodes = response['data']['coopResult']['historyGroups']['nodes'][0]['historyDetails']['nodes']
+    #    nodes = response['data']['coopResult']['historyGroups']['nodes'][0]['historyDetails']['nodes']
 
-    ids: list[str] = set(map(lambda x: x['id'], nodes)) - set(map(lambda x: base64.b64encode(os.path.splitext(x)[0].encode('utf-8')).decode('utf-8'), os.listdir('results')))
+    ids: list[str] = set(map(lambda x: x["id"], nodes)) - set(
+        map(
+            lambda x: base64.b64encode(os.path.splitext(x)[0].encode("utf-8")).decode(
+                "utf-8"
+            ),
+            os.listdir("results"),
+        )
+    )
     print(f"Available results {len(ids)}")
     for id in ids:
         fname = f"results/{base64.b64decode(id).decode('utf-8')}.json"
-        with open(fname, mode='w') as f:
+        with open(fname, mode="w") as f:
             print(f"Downloading results id: {id}")
             result = get_coop_result(session, id)
+            _upload_coop_result(session, result)
             json.dump(result, f, indent=2)
