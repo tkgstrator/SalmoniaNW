@@ -1,0 +1,7 @@
+# アップデート時にやること
+
+iksm.pyのsha256Hash部分を確認する。
+Google検索すると先人達が頑張ってくれた結果が見つかるので差し替える。
+
+多分ここにある
+https://github.com/samuelthomas2774/nxapi/discussions/11

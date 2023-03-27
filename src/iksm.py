@@ -170,12 +170,14 @@ class Imink:
     timestamp: int
     request_id: str
 
+
 @dataclass_json
 @dataclass
 class BulletToken:
     bulletToken: str
     lang: str
     is_noe_country: bool
+
 
 @dataclass_json
 @dataclass
@@ -192,10 +194,11 @@ class Credential:
     bullet_token: str
     expires_in: str
 
+
 session_token_code_challenge = "tYLPO5PxpK-DTcAHJXugD7ztvAZQlo0DQQp3au5ztuM"
 session_token_code_verifier = "OwaTAOolhambwvY3RXSD-efxqdBEVNnQkc0bBJ7zaak"
-app_ver = '1.0.0'
-version = '1.0.0-5e2bcdfb'
+app_ver = '3.0.0'
+version = '3.0.0-0742bda0'
 
 logger = getLogger(__name__)
 logger.setLevel(DEBUG)
@@ -205,9 +208,11 @@ formatter = Formatter('%(levelname)s  %(asctime)s  [%(name)s] %(message)s')
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 
+
 class IminkType(Enum):
     NSO = "1"
     APP = "2"
+
 
 def renew_cookie(session_token: str):
     version = get_app_version()
@@ -281,7 +286,7 @@ def get_session_token(url_scheme: str) -> SessionToken:
         return SessionToken.from_json(response)
     except Exception as e:
         logger.error(response)
-        response = ErrorNSO.from_json(response)
+        response = ErrorNSO.from_json(response.text)
         print(f"TypeError: {response.error_description}")
         sys.exit(1)
 
@@ -304,7 +309,7 @@ def get_access_token(session_token: str) -> AccessToken:
         return AccessToken.from_json(response)
     except Exception as e:
         logger.error(response)
-        response = ErrorNSO.from_json(response)
+        response = ErrorNSO.from_json(response.text)
         print(f"TypeError: {response.error_description}")
         sys.exit(1)
 
@@ -351,12 +356,12 @@ def get_splatoon_token(access_token: AccessToken, version: str) -> SplatoonToken
         return SplatoonToken.from_json(response.text)
     except Exception as e:
         logger.error(response)
-        response = ErrorNSO.from_json(response)
+        response = ErrorNSO.from_json(response.text)
         print(f"TypeError: {response.error}")
 
 
 def get_splatoon_access_token(splatoon_token: SplatoonToken, version: str
-) -> SplatoonAccessToken:
+                              ) -> SplatoonAccessToken:
     url = "https://api-lp1.znc.srv.nintendo.net/v2/Game/GetWebServiceToken"
     access_token = splatoon_token.result.webApiServerCredential.accessToken
     result = get_imink(access_token, IminkType.APP)
@@ -385,6 +390,7 @@ def get_splatoon_access_token(splatoon_token: SplatoonToken, version: str
         response = ErrorAPP.from_json(response)
         print(f"TypeError: {response.errorMessage}")
 
+
 def get_bullet_token(splatoon_access_token: SplatoonAccessToken) -> BulletToken:
     url = "https://api.lp1.av5ja.srv.nintendo.net/api/bullet_tokens"
     headers = {
@@ -409,6 +415,7 @@ def get_app_version() -> str:
     except:
         print(f"TypeError: invalid id")
 
+
 def request(parameters: dict) -> dict:
     # WIP: Load User Credentials
     with open('credentials.json', mode='r') as f:
@@ -419,44 +426,47 @@ def request(parameters: dict) -> dict:
             credential: Credential = Credential.from_json(f.read())
         url = 'https://api.lp1.av5ja.srv.nintendo.net/api/graphql'
         headers = {
-          'x-web-view-ver': version,
-          'Authorization': f'Bearer {credential.bullet_token}' 
+            'x-web-view-ver': version,
+            'Authorization': f'Bearer {credential.bullet_token}'
         }
+        print(requests.post(url, headers=headers, json=parameters))
         return requests.post(url, headers=headers, json=parameters).json()
 
 
 def get_coop_result(id: str) -> dict:
     parameters = {
-      'variables': {
-        'coopHistoryDetailId': id
-      },
-      'extensions': {
-        'persistedQuery': {
-          'version': 1,
-          'sha256Hash': 'f3799a033f0a7ad4b1b396f9a3bafb1e'
+        'variables': {
+            'coopHistoryDetailId': id
+        },
+        'extensions': {
+            'persistedQuery': {
+                'version': 3,
+                'sha256Hash': '379f0d9b78b531be53044bcac031b34b'
+            }
         }
-      }
     }
-    return request(parameters) 
+    return request(parameters)
+
 
 def get_coop_summary() -> dict:
     url = 'https://api.lp1.av5ja.srv.nintendo.net/api/graphql'
     parameters = {
-      'variables': {},
-      'extensions': {
-        'persistedQuery': {
-          'version': 1,
-          'sha256Hash': 'a5692cf290ffb26f14f0f7b6e5023b07'
+        'variables': {},
+        'extensions': {
+            'persistedQuery': {
+                'version': 3,
+                'sha256Hash': '6e8711fa8bb803581b97519ade4ef0a3'
+            }
         }
-      }
     }
     response = request(parameters)
     with open('summary.json', mode='w') as f:
         json.dump(response, f, indent=2)
-    
+
     nodes = response['data']['coopResult']['historyGroups']['nodes'][0]['historyDetails']['nodes']
 
-    ids: list[str] = set(map(lambda x: x['id'], nodes)) - set(map(lambda x: os.path.splitext(x)[0], os.listdir('results')))
+    ids: list[str] = set(map(lambda x: x['id'], nodes)) - \
+        set(map(lambda x: os.path.splitext(x)[0], os.listdir('results')))
     print(f"Available results {len(ids)}")
     for id in ids:
         with open(f'results/{id}.json', mode='w') as f:

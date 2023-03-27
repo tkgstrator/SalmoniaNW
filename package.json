@@ -1,0 +1,23 @@
+{
+  "name": "salmonianw",
+  "version": "1.0.0",
+  "description": "",
+  "main": "./src/main.py",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sasagar/SalmoniaNW.git"
+  },
+  "author": "sasagar",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/sasagar/SalmoniaNW/issues"
+  },
+  "homepage": "https://github.com/sasagar/SalmoniaNW#readme",
+  "devDependencies": {
+    "eslint-config-prettier": "^8.5.0",
+    "eslint-plugin-prettier": "^4.2.1"
+  }
+}

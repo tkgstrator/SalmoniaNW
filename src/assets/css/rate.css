@@ -1,0 +1,99 @@
+body {
+	background-color: #0a0;
+	margin: 0;
+	padding: 0;
+	color: #fff;
+	font-family: Splatoon2;
+	line-height: 1.2;
+}
+
+/* 評価の「でんせつ」などの部分 */
+#grade .name {
+	font-size: 24px;
+}
+
+/* 評価の「40」などの部分 */
+#grade .point {
+	font-size: 36px;
+}
+
+/* うろこセクション */
+#scale {
+	display: flex;
+	gap: 10px;
+}
+
+/* うろこの画像サイズ */
+#scale img {
+	width: 24px;
+}
+
+/* 各項目のタイトル */
+.heading {
+	font-size: 18px;
+}
+
+/* 各項目の基本サイズ */
+#scale,
+.pointCard {
+	font-size: 24px;
+}
+
+/* 勝敗の数字の文字サイズ */
+#win-def {
+	font-size: 28px;
+}
+
+/* 勝敗の漢字の文字サイズ */
+#win-def span {
+	font-size: 24px;
+}
+
+/* シフト内勝敗リスト */
+#shiftStatsList {
+	display: flex;
+}
+
+#shiftStatsList .defeat {
+	position: relative;
+	color: #000;
+}
+
+#shiftStatsList .defeat .num {
+	position: absolute;
+	top: 0;
+	left: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+	height: 100%;
+	color: #fff;
+	font-size: 0.6em;
+}
+
+/* オオモノ数表示部分 */
+#boss-salmonid {
+	width: 150px;
+}
+
+#boss-salmonid .boss {
+	font-size: 24px;
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+}
+
+#boss-salmonid .boss img {
+	width: 24px;
+	height: auto;
+	display: block;
+}
+
+#boss-salmonid .boss .defeat {
+	font-size: 0.6em;
+}
+
+#boss-salmonid .boss .popcount {
+	font-size: 0.6em;
+}
