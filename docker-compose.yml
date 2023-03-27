@@ -14,10 +14,19 @@ services:
       - python3
   python3:
     restart: always
-    build: .
+    build:
+      context: ./salmonia
+      dockerfile: Dockerfile
     container_name: 'python3'
     command: python /salmoniaNW/main.py
     working_dir: '/salmoniaNW/'
     tty: true
     volumes:
-      - ./src:/salmoniaNW
+      - ./salmonia:/salmoniaNW
+  express:
+    restert: always
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: 'salmonia-api'
+    ports: '3000:3000'

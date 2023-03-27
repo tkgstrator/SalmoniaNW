@@ -1,11 +1,10 @@
 __pycache__
 config.json
 .env
-results/*.json
 logs.txt
 node_modules
 credentials.json
-src/results/*
+salmonia/results/*
 .DS_Store
 summary.json
 nginx/log/*
