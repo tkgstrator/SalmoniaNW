@@ -2,6 +2,8 @@
 Vue.createApp({
     setup() {
         // 設定系項目
+        // | axiosのbaseURL
+        axios.defaults.baseURL = "http://localhost:3000/";
         // | 勝敗リストで表示する数（直近何回分か）
         const statsNumber = 10;
         // | シフト終了後どれくらいの分数結果を保持するか
@@ -272,28 +274,9 @@ Vue.createApp({
                 count.flipperflopper = getPopCount(countFlipperFlopper);
                 count.bigshot = getPopCount(countBigShot);
                 count.slamminlid = getPopCount(countSlamminLid);
-                // count.steelhead = countSteelhead.value[0].popCount;
-                // count.flyfish = countFlyfish.value[0].popCount;
-                // count.scrapper = countScrapper.value[0].popCount;
-                // count.steeleel = countSteelEel.value[0].popCount;
-                // count.stinger = countStinger.value[0].popCount;
-                // count.maws = countMaws.value[0].popCount;
-                // count.drizzler = countDrizzler.value[0].popCount;
-                // count.fishstick = countFishStick.value[0].popCount;
-                // count.flipperflopper = countFlipperFlopper.value[0].popCount;
-                // count.bigshot = countBigShot.value[0].popCount;
-                // count.slamminlid = countSlamminLid.value[0].popCount;
             }
             return count;
         });
-
-
-        // 普通にやると徐々に更新されてカウントアップするので、それを回避する一時代入用変数
-        // | プレイ回数と勝利数
-        // const tmpShiftPlayCount = Vue.ref(0);
-        // const tmpShiftWinCount = Vue.ref(0);
-        // | 勝敗リスト（勝ち星表示用）
-        // const tmpShiftStatsList = Vue.ref([]);
 
         // 直近のキケン度（%）
         const latestDangerRate = Vue.ref('N/A');
@@ -308,103 +291,108 @@ Vue.createApp({
 
         // summary.jsonを読み込む
         const getSummary = async function () {
-            console.groupCollapsed('summary.jsonを読み込むよ！');
-            await axios
-                .get('./summary.json')
-                .then(async function (res) {
-                    // 直近でプレイしたシフトの時刻
-                    latestShiftStarts.value = res.data.data.coopResult.historyGroups.nodes[0].startTime;
-                    latestShiftEnds.value = res.data.data.coopResult.historyGroups.nodes[0].endTime;
-                    // 評価の称号は無条件に拾う
-                    gradeName.value = res.data.data.coopResult.regularGrade.name;
-                    // 評価の数値は一旦40に
-                    // gradePoint.value = 40;
-                    // うろこ部分
-                    scale.value = res.data.data.coopResult.scale;
-                    // ポイントカードの情報
-                    pointCard.value = res.data.data.coopResult.pointCard;
-                    // 直近のリザルトID
-                    const latest = res.data.data.coopResult.historyGroupsOnlyFirst.nodes[0].historyDetails.nodes[0].id;
+            console.groupCollapsed('summaryを読み込むよ！');
+            let response;
+            // ここから新
+            try {
+                response = await axios.get('/summary');
+                console.log('summary取得成功');
+            } catch (error) {
+                console.error(error);
+            }
+            // 直近でプレイしたシフトの時刻
+            latestShiftStarts.value = response.data.coopResult.historyGroups.nodes[0].startTime;
+            latestShiftEnds.value = response.data.coopResult.historyGroups.nodes[0].endTime;
+            // 評価の称号は無条件に拾う
+            gradeName.value = response.data.coopResult.regularGrade.name;
+            // 評価の数値は一旦40に
+            // gradePoint.value = 40;
+            // うろこ部分
+            scale.value = response.data.coopResult.scale;
+            // ポイントカードの情報
+            pointCard.value = response.data.coopResult.pointCard;
+            // 直近のリザルトID
+            const latest = response.data.coopResult.historyGroupsOnlyFirst.nodes[0].historyDetails.nodes[0].id;
 
-                    // 今よりもシフト終了時刻が前だったら値を上書き
-                    const endTime = new Date(latestShiftEnds.value);
-                    const now = new Date();
-                    endTime.setMinutes(endTime.getMinutes() + shiftPadding);
-                    if (endTime > now) {
-                        // 評価の数値を上書き
-                        gradePoint.value = res.data.data.coopResult.regularGradePoint;
-                    }
-                    // イニシャライズのフラグをtrueに
-                    init.value = true;
-                    if (latest !== latestId.value || shiftPlayCount.value === 0) {
-                        latestId.value = latest;
-                        await _sleep(2000); // Python側の処理対策で1秒待つ
-                        getAllResults();
-                    }
-                    console.groupEnd();
-                })
-                .catch(function (err) {
-                    console.error('取得に失敗しました。', err);
-                    console.groupEnd();
-                });
+            // 今よりもシフト終了時刻が前だったら値を上書き
+            const endTime = new Date(latestShiftEnds.value);
+            const now = new Date();
+            endTime.setMinutes(endTime.getMinutes() + shiftPadding);
+            if (endTime > now) {
+                // 評価の数値を上書き
+                gradePoint.value = response.data.coopResult.regularGradePoint;
+            }
+            // イニシャライズのフラグをtrueに
+            init.value = true;
+            if (latest !== latestId.value || shiftPlayCount.value === 0) {
+                latestId.value = latest;
+                await _sleep(2000); // Python側の処理対策で1秒待つ
+                getAllResults();
+            }
             console.groupEnd();
         };
 
         // リザルトのjsonを読み込む
         const getResult = async function (resultId) {
             console.groupCollapsed(`ID: ${resultId} のデータを読み込むよ！`);
+
             let value;
-            await axios.get(`./results/${resultId}.json`)
-                .then(function (res) {
-                    const tmp = res.data.data;
+            let response;
+            // ここから新
+            try {
+                response = await axios.get('/result/' + resultId);
+                console.log('リザルト取得成功');
 
-                    if (!tmp.coopHistoryDetail) {
-                        return;
+
+                const tmp = response.data;
+
+                if (!tmp.coopHistoryDetail) {
+                    return;
+                }
+
+                const playedTime = new Date(tmp.coopHistoryDetail.playedTime);
+                const shiftStarts = new Date(latestShiftStarts.value);
+                const shiftEnds = new Date(latestShiftEnds.value);
+                const now = new Date();
+                shiftEnds.setMinutes(shiftEnds.getMinutes() + shiftPadding);
+
+                if (playedTime > shiftStarts && now < shiftEnds) {
+                    resultsAll.value.push(tmp);
+                    console.log('リザルトを追加したよ！');
+                    // プレイ回数を加算
+                    shiftPlayCount.value++;
+                    // 勝利数を加算
+                    if (tmp.coopHistoryDetail.resultWave === 0) {
+                        shiftWinCount.value++;
                     }
+                    // 勝敗リストに追加
+                    shiftStatsList.value.push(tmp.coopHistoryDetail.resultWave);
+                    shiftStatsList.value.splice();
+                    // オオモノ情報の追加
+                    getEnemyCount(tmp.coopHistoryDetail.enemyResults);
 
-                    const playedTime = new Date(tmp.coopHistoryDetail.playedTime);
-                    const shiftStarts = new Date(latestShiftStarts.value);
-                    const shiftEnds = new Date(latestShiftEnds.value);
-                    const now = new Date();
-                    shiftEnds.setMinutes(shiftEnds.getMinutes() + shiftPadding);
+                    value = tmp.coopHistoryDetail.previousHistoryDetail.id;
 
-                    if (playedTime > shiftStarts && now < shiftEnds) {
-                        // if (playedTime > shiftStarts) {
-                        resultsAll.value.push(tmp);
-                        console.log('リザルトを追加したよ！');
-                        // プレイ回数を加算
-                        // tmpShiftPlayCount.value++;
-                        shiftPlayCount.value++;
-                        // 勝利数を加算
-                        if (tmp.coopHistoryDetail.resultWave === 0) {
-                            // tmpShiftWinCount.value++;
-                            shiftWinCount.value++;
-                        }
-                        // 勝敗リストに追加
-                        // tmpShiftStatsList.value.push(tmp.coopHistoryDetail.resultWave);
-                        shiftStatsList.value.push(tmp.coopHistoryDetail.resultWave);
-                        shiftStatsList.value.splice();
-                        // オオモノ情報の追加
-                        getEnemyCount(tmp.coopHistoryDetail.enemyResults);
-
-                        // shiftPlayCount.value = tmpShiftPlayCount.value;
-                        // shiftWinCount.value = tmpShiftWinCount.value;
-
-                        value = tmp.coopHistoryDetail.previousHistoryDetail.id;
-
-                        if (resultId === latestId.value) {
-                            // キケン度更新
-                            latestDangerRate.value = Math.round(tmp.coopHistoryDetail.dangerRate * 1000) / 10;
-                        }
-                    } else {
-                        console.log('直近のシフトのデータじゃないので無視したよ！');
-                        value = false;
+                    if (resultId === latestId.value) {
+                        // キケン度更新
+                        latestDangerRate.value = Math.round(tmp.coopHistoryDetail.dangerRate * 1000) / 10;
                     }
-                })
-                .catch(function (err) {
-                    console.error('リザルト取得に失敗しました。', err);
+                } else {
+                    console.log('直近のシフトのデータじゃないので無視したよ！');
                     value = false;
-                });
+                }
+
+            }
+            catch (error) {
+                console.error(error);
+                // 200以外なら抜ける
+                if (error.response.status == 200) {
+                    _sleep(1000);
+                } else {
+                    value = false;
+                }
+            }
+
             console.groupEnd();
             return value;
         };
@@ -414,7 +402,6 @@ Vue.createApp({
         const getAllResults = async function () {
             console.group('getAllResults');
             if (latestReadId.value !== latestId.value) {
-                // if (getAllFlag) {
                 getAllFlag.value = false;
                 let flag = true;
                 let id = latestId.value;
@@ -465,13 +452,8 @@ Vue.createApp({
                         id = res;
                     }
                 }
-                // shiftPlayCount.value = tmpShiftPlayCount.value;
-                // shiftWinCount.value = tmpShiftWinCount.value;
-                // shiftStatsList.value = tmpShiftStatsList.value;
-                // shiftStatsList.value.splice(); // 配列更新
 
                 getAllFlag.value = true;
-                // }
             } else {
                 console.log('最新情報は取得済みだったよ！');
             }
@@ -585,7 +567,7 @@ Vue.createApp({
         const polling = async function () {
             console.group('polling start');
             await getSummary();
-            console.groupEnd();
+            console.groupEnd('polling end');
         }
 
         Vue.onMounted(async () => {

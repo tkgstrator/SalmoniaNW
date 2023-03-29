@@ -460,16 +460,16 @@ def get_coop_summary() -> dict:
         }
     }
     response = request(parameters)
-    with open('summary.json', mode='w') as f:
+    with open('../data/summary.json', mode='w') as f:
         json.dump(response, f, indent=2)
 
     nodes = response['data']['coopResult']['historyGroups']['nodes'][0]['historyDetails']['nodes']
 
     ids: list[str] = set(map(lambda x: x['id'], nodes)) - \
-        set(map(lambda x: os.path.splitext(x)[0], os.listdir('results')))
+        set(map(lambda x: os.path.splitext(x)[0], os.listdir('../data/results')))
     print(f"Available results {len(ids)}")
     for id in ids:
-        with open(f'results/{id}.json', mode='w') as f:
+        with open(f'../data/results/{id}.json', mode='w') as f:
             print(f"Downloading results id: {id}")
             result = get_coop_result(id)
             json.dump(result, f, indent=2)

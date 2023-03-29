@@ -3,7 +3,7 @@ body {
 	margin: 0;
 	padding: 0;
 	color: #fff;
-	font-family: Splatoon2;
+	font-family: 'Splatfont 2';
 	line-height: 1.2;
 }
 
@@ -25,7 +25,7 @@ body {
 
 /* うろこの画像サイズ */
 #scale img {
-	width: 24px;
+	width: 36px;
 }
 
 /* 各項目のタイトル */

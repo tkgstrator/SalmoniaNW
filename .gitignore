@@ -4,7 +4,7 @@ config.json
 logs.txt
 node_modules
 credentials.json
-salmonia/results/*
+data/results/*
 .DS_Store
 summary.json
 nginx/log/*

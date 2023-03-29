@@ -8,7 +8,7 @@ services:
       - '8888:80'
     volumes:
       - ./nginx/conf:/etc/nginx/conf.d
-      - ./src:/salmoniaNW
+      - ./nginx/html:/salmoniaNW
       - ./nginx/log:/var/log/nginx
     depends_on:
       - python3
@@ -23,10 +23,16 @@ services:
     tty: true
     volumes:
       - ./salmonia:/salmoniaNW
+      - ./data:/data
   express:
-    restert: always
+    restart: always
     build:
       context: ./api
       dockerfile: Dockerfile
     container_name: 'salmonia-api'
-    ports: '3000:3000'
+    ports:
+      - '3000:3000'
+    depends_on:
+      - python3
+    volumes:
+      - ./data:/data

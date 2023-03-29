@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>OBSブラウザ用 レート表示HTML</title>
+    <link rel="stylesheet" href="assets/css/rate.css">
+    <script src="./assets/js/vue.global.prod.js"></script>
+    <script src="./assets/js/axios.min.js"></script>
+    <script src="./assets/js/moment-with-locale.js"></script>
+    <style>
+        body {
+            width: 1920px;
+            height: 1080px;
+            /* background-color: transparent; */
+            position: relative;
+            filter: drop-shadow(2px 2px 0 #000);
+            overflow: hidden;
+        }
+
+        #top {
+            position: absolute;
+            right: 20px;
+            display: flex;
+            align-items: center;
+        }
+
+        #right {
+            position: absolute;
+            right: 20px;
+            top: 60px;
+        }
+
+        #grade .name {
+            font-size: 32px;
+        }
+
+        #grade .point {
+            font-size: 48px;
+            margin-left: 10px;
+        }
+
+        #scale {
+            margin-right: 20px;
+            font-size: 36px;
+            gap: 15px;
+        }
+
+        #scale img {
+            margin-right: 10px;
+        }
+
+        #result {
+            margin-right: 20px;
+        }
+
+        .data {
+            display: grid;
+            grid-template-rows: 1fr auto;
+            grid-template-columns: 1fr 1fr;
+            width: 100%;
+            grid-template-areas:
+                "upper upper"
+                "lower-l lower-r";
+        }
+
+        .data .upper {
+            grid-area: upper;
+            text-align: center;
+        }
+
+        .data .lower-l {
+            grid-area: lower-l;
+            text-align: center;
+            line-height: 1;
+        }
+
+        .data .lower-r {
+            grid-area: lower-r;
+            text-align: center;
+            line-height: 1;
+        }
+
+        .data #win-def {
+            font-size: 32px;
+            line-height: 1;
+        }
+
+        #shiftStatsList {
+            font-size: 18px;
+        }
+
+        #dangerRate {
+            font-size: 36px;
+            text-align: right;
+            margin-right: 20px;
+            line-height: 1;
+        }
+
+        #dangerRate span {
+            font-size: 0.6em;
+            line-height: 1;
+        }
+
+        #boss-salmonid {
+            margin-top: 20px;
+            width: 230px;
+        }
+
+        #boss-salmonid .boss {
+            font-size: 32px;
+            position: relative;
+        }
+
+        #boss-salmonid .boss .popcount {
+            font-size: 0.8em;
+        }
+
+        #boss-salmonid .boss+.boss {
+            margin-top: 15px;
+        }
+
+        #boss-salmonid .boss+.boss::before {
+            display: block;
+            content: '';
+            position: absolute;
+            top: -8px;
+            width: 100%;
+            height: 1px;
+            background-color: #f80;
+        }
+
+        #boss-salmonid .boss img {
+            width: 48px;
+        }
+
+        #boss-salmonid .boss .latestpopcount {
+            font-size: 0.6em;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="app">
+        <div id="top">
+            <div id="scale">
+                <div class="bronze"><img src="./assets/img/cooper.png" alt="bronze">{{scale.bronze.toLocaleString()}}
+                </div>
+                <div class="silver"><img src="./assets/img/silver.png" alt="silver">{{scale.silver.toLocaleString()}}
+                </div>
+                <div class="gold"><img src="./assets/img/gold.png" alt="gold">{{scale.gold.toLocaleString()}}</div>
+            </div>
+            <div id="dangerRate">
+                <span>前回のキケン度</span>
+                {{latestDangerRate}}<span>%</span>
+            </div>
+            <div id="result">
+                <div id="win-def">
+                    {{shiftPlayCount}}<span>戦</span>
+                    {{shiftWinCount}}<span>勝</span>
+                    {{shiftDefeatCount}}<span>敗</span>
+                </div>
+                <div id="shiftStatsList">
+                    <template v-for="stat in shiftStatsListSliced">
+                        <span v-if="stat === 0">
+                            ●
+                        </span>
+                        <span v-else class="defeat">
+                            <span>●</span>
+                            <span class="num">{{stat}}</span>
+                        </span>
+                    </template>
+                </div>
+            </div>
+            <div id="grade">
+                <span class="name">{{gradeName}}</span>
+                <span class="point">{{gradePoint}}</span>
+            </div>
+        </div>
+        <div id="right">
+            <section id="boss-salmonid">
+                <div id="steelhead" class="boss">
+                    <div class="icon">
+                        <img src="./assets/img/steelhead.png" alt="バクダン">
+                    </div>
+                    <div class="data">
+                        <div class="upper">
+                            <span class="team-defeat">{{countSteelheadDefeat.teamDefeatCount}}</span>
+                            <span class="slash">/</span>
+                            <span class="popcount">{{countSteelheadDefeat.popCount}}</span>
+                        </div>
+                        <div class="lower-l">
+                            <span class="defeat">Self: {{countSteelheadDefeat.defeatCount}}</span>
+                        </div>
+                        <div class="lower-r">
+                            <span class="latestpopcount">Last: {{latestBossCount.steelhead}}</span>
+                        </div>
+                    </div>
+                </div>
+                <div id="flyfish" class="boss">
+                    <div class="icon">
+                        <img src="./assets/img/flyfish.png" alt="カタパッド">
+                    </div>
+                    <div class="data">
+                        <div class="upper">
+                            <span class="team-defeat">{{countFlyfishDefeat.teamDefeatCount}}</span>
+                            <span class="slash">/</span>
+                            <span class="popcount">{{countFlyfishDefeat.popCount}}</span>
+                        </div>
+                        <div class="lower-l">
+                            <span class="defeat">Self: {{countFlyfishDefeat.defeatCount}}</span>
+                        </div>
+                        <div class="lower-r">
+                            <span class="latestpopcount">Last: {{latestBossCount.flyfish}}</span>
+                        </div>
+                    </div>
+                </div>
+                <div id="scrapper" class="boss">
+                    <div class="icon">
+                        <img src="./assets/img/scrapper.png" alt="テッパン">
+                    </div>
+                    <div class="data">
+                        <div class="upper">
+                            <span class="team-defeat">{{countScrapperDefeat.teamDefeatCount}}</span>
+                            <span class="slash">/</span>
+                            <span class="popcount">{{countScrapperDefeat.popCount}}</span>
+                        </div>
+                        <div class="lower-l">
+                            <span class="defeat">Self: {{countScrapperDefeat.defeatCount}}</span>
+                        </div>
+                        <div class="lower-r">
+                            <span class="latestpopcount">Last: {{latestBossCount.scrapper}}</span>
+                        </div>
+                    </div>
+                </div>
+                <div id="steeleel" class="boss">
+                    <div class="icon">
+                        <img src="./assets/img/steeleel.png" alt="ヘビ">
+                    </div>
+                    <div class="data">
+                        <div class="upper">
+                            <span class="team-defeat">{{countSteelEelDefeat.teamDefeatCount}}</span>
+                            <span class="slash">/</span>
+                            <span class="popcount">{{countSteelEelDefeat.popCount}}</span>
+                        </div>
+                        <div class="lower-l">
+                            <span class="defeat">Self: {{countSteelEelDefeat.defeatCount}}</span>
+                        </div>
+                        <div class="lower-r">
+                            <span class="latestpopcount">Last: {{latestBossCount.steeleel}}</span>
+                        </div>
+                    </div>
+                </div>
+                <div id="stinger" class="boss">
+                    <div class="icon">
+                        <img src="./assets/img/stinger.png" alt="タワー">
+                    </div>
+                    <div class="data">
+                        <div class="upper">
+                            <span class="team-defeat">{{countStingerDefeat.teamDefeatCount}}</span>
+                            <span class="slash">/</span>
+                            <span class="popcount">{{countStingerDefeat.popCount}}</span>
+                        </div>
+                        <div class="lower-l">
+                            <span class="defeat">Self: {{countStingerDefeat.defeatCount}}</span>
+                        </div>
+                        <div class="lower-r">
+                            <span class="latestpopcount">Last: {{latestBossCount.stinger}}</span>
+                        </div>
+                    </div>
+                </div>
+                <div id="maws" class="boss">
+                    <div class="icon">
+                        <img src="./assets/img/maws.png" alt="モグラ">
+                    </div>
+                    <div class="data">
+                        <div class="upper">
+                            <span class="team-defeat">{{countMawsDefeat.teamDefeatCount}}</span>
+                            <span class="slash">/</span>
+                            <span class="popcount">{{countMawsDefeat.popCount}}</span>
+                        </div>
+                        <div class="lower-l">
+                            <span class="defeat">Self: {{countMawsDefeat.defeatCount}}</span>
+                        </div>
+                        <div class="lower-r">
+                            <span class="latestpopcount">Last: {{latestBossCount.maws}}</span>
+                        </div>
+                    </div>
+                </div>
+                <div id="drizzler" class="boss">
+                    <div class="icon">
+                        <img src="./assets/img/drizzler.png" alt="コウモリ">
+                    </div>
+                    <div class="data">
+                        <div class="upper">
+                            <span class="team-defeat">{{countDrizzlerDefeat.teamDefeatCount}}</span>
+                            <span class="slash">/</span>
+                            <span class="popcount">{{countDrizzlerDefeat.popCount}}</span>
+                        </div>
+                        <div class="lower-l">
+                            <span class="defeat">Self: {{countDrizzlerDefeat.defeatCount}}</span>
+                        </div>
+                        <div class="lower-r">
+                            <span class="latestpopcount">Last: {{latestBossCount.drizzler}}</span>
+                        </div>
+                    </div>
+                </div>
+                <div id="fishstick" class="boss">
+                    <div class="icon">
+                        <img src="./assets/img/fishstick.png" alt="ハシラ">
+                    </div>
+                    <div class="data">
+                        <div class="upper">
+                            <span class="team-defeat">{{countFishStickDefeat.teamDefeatCount}}</span>
+                            <span class="slash">/</span>
+                            <span class="popcount">{{countFishStickDefeat.popCount}}</span>
+                        </div>
+                        <div class="lower-l">
+                            <span class="defeat">Self: {{countFishStickDefeat.defeatCount}}</span>
+                        </div>
+                        <div class="lower-r">
+                            <span class="latestpopcount">Last: {{latestBossCount.fishstick}}</span>
+                        </div>
+
+                    </div>
+                </div>
+                <div id="flipperflopper" class="boss">
+                    <div class="icon">
+                        <img src="./assets/img/flipperflopper.png" alt="ダイバー">
+                    </div>
+                    <div class="data">
+                        <div class="upper">
+                            <span class="team-defeat">{{countFlipperFlopperDefeat.teamDefeatCount}}</span>
+                            <span class="slash">/</span>
+                            <span class="popcount">{{countFlipperFlopperDefeat.popCount}}</span>
+                        </div>
+                        <div class="lower-l">
+                            <span class="defeat">Self: {{countFlipperFlopperDefeat.defeatCount}}</span>
+                        </div>
+                        <div class="lower-r">
+                            <span class="latestpopcount">Last: {{latestBossCount.flipperflopper}}</span>
+                        </div>
+                    </div>
+                </div>
+                <div id="bigshot" class="boss">
+                    <div class="icon">
+                        <img src="./assets/img/bigshot.png" alt="テッキュウ">
+                    </div>
+                    <div class="data">
+                        <div class="upper">
+                            <span class="team-defeat">{{countBigShotDefeat.teamDefeatCount}}</span>
+                            <span class="slash">/</span>
+                            <span class="popcount">{{countBigShotDefeat.popCount}}</span>
+                        </div>
+                        <div class="lower-l">
+                            <span class="defeat">Self: {{countBigShotDefeat.defeatCount}}</span>
+                        </div>
+                        <div class="lower-r">
+                            <span class="latestpopcount">Last: {{latestBossCount.bigshot}}</span>
+                        </div>
+                    </div>
+                </div>
+                <div id="slamminlid" class="boss">
+                    <div class="icon">
+                        <img src="./assets/img/slamminlid.png" alt="ナベブタ">
+                    </div>
+                    <div class="data">
+                        <div class="upper">
+                            <span class="team-defeat">{{countSlamminLidDefeat.teamDefeatCount}}</span>
+                            <span class="slash">/</span>
+                            <span class="popcount">{{countSlamminLidDefeat.popCount}}</span>
+                        </div>
+                        <div class="lower-l">
+                            <span class="defeat">Self: {{countSlamminLidDefeat.defeatCount}}</span>
+                        </div>
+                        <div class="lower-r">
+                            <span class="latestpopcount">Last: {{latestBossCount.slamminlid}}</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+    <script src="./assets/js/nextwave-rate.js"></script>
+</body>
+
+</html>
